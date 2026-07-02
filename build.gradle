@@ -1,0 +1,57 @@
+plugins {
+    id 'java'
+    // Shadow builds a single "fat" JAR that bundles our runtime dependencies (Gson).
+    // Burp loads exactly one JAR per extension, so anything not provided by Burp at
+    // runtime MUST be shaded in. The Montoya API itself is provided BY Burp, so it is
+    // deliberately compileOnly (see below) and is NOT bundled.
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
+}
+
+group = 'com.gqlsentinel'
+version = '1.0.0'
+
+java {
+    // Burp Suite (2023.x+) ships and runs on a modern JDK. Target 17 for broad
+    // compatibility with the Burp-bundled runtime while keeping modern language features.
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Montoya API: the modern, type-safe Burp extension API. It is provided by the
+    // Burp runtime, so we compile against it but never bundle it (compileOnly). Bundling
+    // it would risk classloader conflicts with Burp's own copy.
+    compileOnly 'net.portswigger.burp.extensions:montoya-api:2025.4'
+
+    // Gson: small, well-audited JSON parser. We need robust parsing of arbitrary,
+    // possibly-malformed GraphQL/JSON bodies and introspection results. Bundled via Shadow.
+    implementation 'com.google.code.gson:gson:2.11.0'
+
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testCompileOnly 'net.portswigger.burp.extensions:montoya-api:2025.4'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+shadowJar {
+    // Stable output name so the README build instructions can reference a fixed path.
+    archiveBaseName.set('graphql-sentinel')
+    archiveClassifier.set('')
+    archiveVersion.set(version)
+
+    // Relocate Gson into our own namespace. If another loaded extension also bundles a
+    // different Gson version, relocation prevents "wrong class version" collisions in
+    // Burp's shared extension classloader space. Cheap insurance, standard practice.
+    relocate 'com.google.gson', 'com.gqlsentinel.shaded.gson'
+}
+
+// Make `gradle build` produce the shaded, Burp-loadable artifact.
+build.dependsOn shadowJar

@@ -1,0 +1,2 @@
+// Root project name becomes the base name of the built extension JAR.
+rootProject.name = 'graphql-sentinel'
